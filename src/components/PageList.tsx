@@ -1,3 +1,4 @@
+import { cacheTag } from "next/cache";
 import { contentfulClient } from "~/contentful-client";
 import { graphql } from "~/gql";
 
@@ -28,6 +29,8 @@ export async function PageList() {
 
 async function getPages() {
   "use cache";
+
+  cacheTag("pages");
 
   const data = await contentfulClient.request(GET_PAGES);
 
