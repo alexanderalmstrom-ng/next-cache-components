@@ -10,6 +10,7 @@ export const env = createEnv({
     CONTENTFUL_ENVIRONMENT: requiredString.default("master"),
     CONTENTFUL_PREVIEW_ACCESS_TOKEN: requiredString.optional(),
     CONTENTFUL_SPACE_ID: requiredString,
+    CONTENTFUL_LOCALE: requiredString,
     VOYADO_ELEVATE_CLUSTER_ID: requiredString,
     VOYADO_ELEVATE_LOCALE: requiredString,
     VOYADO_ELEVATE_MARKET: requiredString,

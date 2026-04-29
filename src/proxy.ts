@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { getContentfulRouteType } from "~/contentful-routing";
 
 const INTERNAL_ROUTE_PREFIX = "/routes";
 const PUBLIC_FILE = /\.[^/]+$/;
@@ -22,23 +23,38 @@ function rewriteTo(request: NextRequest, pathname: string) {
   return NextResponse.rewrite(url);
 }
 
-export function proxy(request: NextRequest) {
-  const { pathname } = request.nextUrl;
+function getPrefixedFallbackRoute(pathname: string) {
+  const productListingPath = stripRoutePrefix(pathname, "/products");
+
+  if (productListingPath !== null) {
+    return `${INTERNAL_ROUTE_PREFIX}/product-listing${productListingPath}`;
+  }
 
   const productPath = stripRoutePrefix(pathname, "/product");
 
   if (productPath !== null) {
-    return rewriteTo(request, `${INTERNAL_ROUTE_PREFIX}/product${productPath}`);
+    return `${INTERNAL_ROUTE_PREFIX}/product${productPath}`;
   }
 
-  const productListingPath = stripRoutePrefix(pathname, "/products");
+  const pagePath = stripRoutePrefix(pathname, "/page");
 
-  if (productListingPath !== null) {
-    return rewriteTo(
-      request,
-      `${INTERNAL_ROUTE_PREFIX}/product-listing${productListingPath}`,
-    );
+  if (pagePath) {
+    return `${INTERNAL_ROUTE_PREFIX}/page${pagePath}`;
   }
+
+  return null;
+}
+
+function getContentfulPathname(pathname: string) {
+  return (
+    stripRoutePrefix(pathname, "/page") ??
+    stripRoutePrefix(pathname, "/products") ??
+    pathname
+  );
+}
+
+export async function proxy(request: NextRequest) {
+  const { pathname } = request.nextUrl;
 
   if (
     pathname === "/" ||
@@ -48,7 +64,37 @@ export function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
-  return rewriteTo(request, `${INTERNAL_ROUTE_PREFIX}/page${pathname}`);
+  let contentfulRouteType: Awaited<ReturnType<typeof getContentfulRouteType>> =
+    null;
+  const contentfulPathname = getContentfulPathname(pathname);
+
+  try {
+    contentfulRouteType = await getContentfulRouteType(contentfulPathname);
+  } catch (error) {
+    console.error("Failed to resolve Contentful route type", error);
+  }
+
+  if (contentfulRouteType === "ProductListingPage") {
+    return rewriteTo(
+      request,
+      `${INTERNAL_ROUTE_PREFIX}/product-listing${contentfulPathname}`,
+    );
+  }
+
+  if (contentfulRouteType === "Page") {
+    return rewriteTo(
+      request,
+      `${INTERNAL_ROUTE_PREFIX}/page${contentfulPathname}`,
+    );
+  }
+
+  const prefixedFallbackRoute = getPrefixedFallbackRoute(pathname);
+
+  if (prefixedFallbackRoute) {
+    return rewriteTo(request, prefixedFallbackRoute);
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {
